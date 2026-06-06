@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.env
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Media & Temp / Logs
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.srt
+*.log
+*.txt
+.temp_test_gemini/
+*.jpg
+*.png
+backend/data/
+
+
