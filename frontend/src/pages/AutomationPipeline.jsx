@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
-  Play, CheckCircle, AlertCircle, Loader, Settings, Send, 
+import {
+  Play, CheckCircle, AlertCircle, Loader, Settings, Send,
   FolderOpen, Eye, Info, ChevronDown, ChevronUp, Download, Terminal, RefreshCw
 } from 'lucide-react';
 
@@ -33,7 +33,8 @@ export default function AutomationPipeline() {
   const [loading, setLoading] = useState(false);
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
-  
+  const [pipelineMode, setPipelineMode] = useState('automatic');
+
   // Settings panels states
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeStepTab, setActiveStepTab] = useState('step1');
@@ -70,7 +71,8 @@ export default function AutomationPipeline() {
     instagram_business_id: localStorage.getItem('instagram_business_id') || '',
     facebook_page_id: localStorage.getItem('facebook_page_id') || '',
     youtube_access_token: localStorage.getItem('youtube_access_token') || '',
-    public_video_url: localStorage.getItem('public_video_url') || ''
+    public_video_url: localStorage.getItem('public_video_url') || '',
+    start_time: ''
   });
 
   const consoleEndRef = useRef(null);
@@ -99,7 +101,7 @@ export default function AutomationPipeline() {
 
   const fetchRuns = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/pipeline/jobs');
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/pipeline/jobs');
       if (res.ok) {
         const data = await res.json();
         setRuns(data.reverse()); // Latest first
@@ -115,19 +117,23 @@ export default function AutomationPipeline() {
 
   const startPipeline = async () => {
     if (!handle) {
-      alert("Please specify a target Instagram handle!");
+      alert("Please specify a target Instagram handle or YouTube Channel link!");
       return;
     }
-    if (!geminiApiKey) {
+    if (pipelineMode === 'automatic' && !geminiApiKey) {
       alert("A Gemini API Key is required for the visual script analysis and transcription steps!");
       return;
     }
 
     setLoading(true);
     try {
-      localStorage.setItem('gemini_api_key', geminiApiKey);
+      if (geminiApiKey) {
+        localStorage.setItem('gemini_api_key', geminiApiKey);
+      }
+
       const payload = {
         handle: handle,
+        pipeline_mode: pipelineMode,
         gemini_api_key: geminiApiKey,
         download_reels: config.download_reels,
         download_posts: config.download_posts,
@@ -157,10 +163,11 @@ export default function AutomationPipeline() {
         instagram_business_id: config.instagram_business_id,
         facebook_page_id: config.facebook_page_id,
         youtube_access_token: config.youtube_access_token,
-        public_video_url: config.public_video_url
+        public_video_url: config.public_video_url,
+        start_time: config.start_time
       };
 
-      const res = await fetch('http://localhost:8000/api/pipeline/start', {
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/pipeline/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -182,8 +189,72 @@ export default function AutomationPipeline() {
     }
   };
 
+  const runInteractiveStep = async (stepName) => {
+    if (!selectedRun) return;
+
+    if ((stepName === 'narration' || stepName === 'subtitles') && !geminiApiKey) {
+      alert("Gemini API Key is required for script narration and transcription steps!");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const stepPayload = {
+        gemini_api_key: geminiApiKey,
+        download_reels: config.download_reels,
+        download_posts: config.download_posts,
+        download_captions: config.download_captions,
+        local_folder_override: config.local_folder_override,
+        voice: config.voice,
+        audio_mode: config.audio_mode,
+        custom_prompt: config.custom_prompt,
+        rate: config.rate,
+        volume: config.volume,
+        subtitles_styling: {
+          font_size: config.sub_font_size,
+          font_color: config.sub_font_color,
+          outline_color: config.sub_outline_color,
+          outline_width: config.sub_outline_width,
+          alignment: config.sub_alignment
+        },
+        watermark_mode: config.watermark_mode,
+        watermark_logo_path: config.watermark_logo_path,
+        watermark_position: config.watermark_position,
+        watermark_width: config.watermark_width,
+        watermark_opacity: config.watermark_opacity,
+        watermark_margin: config.watermark_margin,
+        platforms: selectedPlatforms,
+        use_simulated: config.use_simulated,
+        meta_access_token: config.meta_access_token,
+        instagram_business_id: config.instagram_business_id,
+        facebook_page_id: config.facebook_page_id,
+        youtube_access_token: config.youtube_access_token,
+        public_video_url: config.public_video_url,
+        start_time: config.start_time
+      };
+
+      const res = await fetch(`https://content-automation-pipeline.onrender.com/api/pipeline/run/${selectedRun.id}/step/${stepName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(stepPayload)
+      });
+
+      if (res.ok) {
+        // Fetch runs to update state
+        fetchRuns();
+      } else {
+        const errData = await res.json();
+        alert(errData.detail || `Failed to execute step ${stepName}`);
+      }
+    } catch (err) {
+      alert("Error connecting to backend API");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const togglePlatform = (plat) => {
-    setSelectedPlatforms(prev => 
+    setSelectedPlatforms(prev =>
       prev.includes(plat) ? prev.filter(p => p !== plat) : [...prev, plat]
     );
   };
@@ -219,266 +290,492 @@ export default function AutomationPipeline() {
 
       {/* ── Main Content Grid ────────────────────────── */}
       <div className="editor-grid" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
-        
+
         {/* Left Side: Setup Form */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <h3 className="setting-title" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Play size={18} /> Run New Pipeline
-            </h3>
-            
-            <div className="input-group" style={{ marginTop: '1rem' }}>
-              <label>Target Instagram Handle</label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="e.g. ayogi_gamer"
-                value={handle}
-                onChange={e => setHandle(e.target.value)}
-              />
-            </div>
 
-            <div className="input-group" style={{ marginTop: '1rem' }}>
-              <label>Gemini API Key</label>
-              <input
-                type="password"
-                className="input-field"
-                placeholder="AI API Key for visual analysis & captions..."
-                value={geminiApiKey}
-                onChange={e => {
-                  setGeminiApiKey(e.target.value);
-                  localStorage.setItem('gemini_api_key', e.target.value);
-                }}
-              />
-            </div>
-
-            {/* Target Social Platform Badges */}
-            <div className="input-group" style={{ marginTop: '1rem' }}>
-              <label style={{ marginBottom: '0.5rem', display: 'block' }}>Target Scheduler Channels</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
+          {selectedRun && selectedRun.config.pipeline_mode === 'interactive' && selectedRun.status !== 'completed' ? (
+            <div className="glass-panel" style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <h3 className="setting-title" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <Settings size={18} /> Interactive Step Control
+                </h3>
                 <button
                   type="button"
-                  onClick={() => togglePlatform('instagram')}
+                  onClick={() => setSelectedRun(null)}
                   style={{
-                    flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid',
-                    background: selectedPlatforms.includes('instagram') ? 'rgba(225, 48, 108, 0.12)' : 'var(--surface-dark)',
-                    borderColor: selectedPlatforms.includes('instagram') ? '#E1306C' : 'rgba(255,255,255,0.06)',
-                    color: selectedPlatforms.includes('instagram') ? '#fff' : 'var(--text-secondary)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer',
-                    fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.2s ease'
+                    padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 600, border: 'none', cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)'
                   }}
                 >
-                  <InstagramIcon size={14} style={{ color: '#E1306C' }} /> Instagram
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => togglePlatform('facebook')}
-                  style={{
-                    flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid',
-                    background: selectedPlatforms.includes('facebook') ? 'rgba(24, 119, 242, 0.12)' : 'var(--surface-dark)',
-                    borderColor: selectedPlatforms.includes('facebook') ? '#1877F2' : 'rgba(255,255,255,0.06)',
-                    color: selectedPlatforms.includes('facebook') ? '#fff' : 'var(--text-secondary)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer',
-                    fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.2s ease'
-                  }}
-                >
-                  <FacebookIcon size={14} style={{ color: '#1877F2' }} /> Facebook
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => togglePlatform('youtube')}
-                  style={{
-                    flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid',
-                    background: selectedPlatforms.includes('youtube') ? 'rgba(255, 0, 0, 0.12)' : 'var(--surface-dark)',
-                    borderColor: selectedPlatforms.includes('youtube') ? '#FF0000' : 'rgba(255,255,255,0.06)',
-                    color: selectedPlatforms.includes('youtube') ? '#fff' : 'var(--text-secondary)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer',
-                    fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.2s ease'
-                  }}
-                >
-                  <YoutubeIcon size={14} style={{ color: '#FF0000' }} /> YouTube
+                  New Run
                 </button>
               </div>
+
+              <div style={{ background: 'rgba(139, 92, 246, 0.05)', border: '1px solid rgba(139, 92, 246, 0.15)', borderRadius: '8px', padding: '0.85rem', marginBottom: '1.25rem' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Active Run: <span style={{ color: 'var(--accent-primary)' }}>@{selectedRun.handle}</span>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  Current Status: <span style={{ color: selectedRun.status === 'error' ? 'var(--error)' : 'var(--accent-primary)', fontWeight: 700 }}>{selectedRun.status.toUpperCase()}</span>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Next Step Up: <span style={{ color: '#fff', fontWeight: 600 }}>{selectedRun.current_step.toUpperCase()}</span>
+                </div>
+              </div>
+
+              {selectedRun.status === 'running' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', gap: '12px' }}>
+                  <Loader size={36} className="spin" style={{ color: 'var(--accent-primary)' }} />
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>Executing {selectedRun.current_step}...</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Please check the terminal console logs for live output.</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h4 style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                    Configure step: {selectedRun.current_step.toUpperCase()}
+                  </h4>
+
+                  {selectedRun.current_step === 'downloader' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      <div style={{ display: 'flex', gap: '15px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={config.download_reels} onChange={e => updateConfig('download_reels', e.target.checked)} /> Reels & Videos
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={config.download_posts} onChange={e => updateConfig('download_posts', e.target.checked)} /> Photos
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={config.download_captions} onChange={e => updateConfig('download_captions', e.target.checked)} /> Captions JSON
+                        </label>
+                      </div>
+                      <div className="input-group" style={{ marginTop: '0.5rem' }}>
+                        <label style={{ fontSize: '0.72rem' }}>Local Folder Override</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          placeholder="e.g. /Users/masi/Documents/newreels"
+                          value={config.local_folder_override}
+                          onChange={e => updateConfig('local_folder_override', e.target.value)}
+                          style={{ height: '34px', fontSize: '0.78rem' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRun.current_step === 'narration' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      <div className="input-group">
+                        <label style={{ fontSize: '0.72rem' }}>Gemini API Key</label>
+                        <input
+                          type="password"
+                          className="input-field"
+                          placeholder="AI API Key for visual script analysis..."
+                          value={geminiApiKey}
+                          onChange={e => setGeminiApiKey(e.target.value)}
+                          style={{ height: '34px', fontSize: '0.78rem' }}
+                        />
+                      </div>
+                      <div className="input-group">
+                        <label style={{ fontSize: '0.72rem' }}>Narrator Voice (edge-tts)</label>
+                        <select className="input-field" value={config.voice} onChange={e => updateConfig('voice', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }}>
+                          <option value="en-US-AriaNeural">Aria (Female US)</option>
+                          <option value="en-US-GuyNeural">Guy (Male US)</option>
+                          <option value="en-GB-SoniaNeural">Sonia (Female UK)</option>
+                          <option value="en-IN-PrabhatNeural">Prabhat (Male India)</option>
+                        </select>
+                      </div>
+                      <div className="input-group">
+                        <label style={{ fontSize: '0.72rem' }}>AI Prompt Guidelines</label>
+                        <input type="text" className="input-field" value={config.custom_prompt} onChange={e => updateConfig('custom_prompt', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <div className="input-group" style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.72rem' }}>Speech Rate Offset (%)</label>
+                          <input type="number" className="input-field" value={config.rate} onChange={e => updateConfig('rate', parseInt(e.target.value) || 0)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                        </div>
+                        <div className="input-group" style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.72rem' }}>Speech Volume Offset (%)</label>
+                          <input type="number" className="input-field" value={config.volume} onChange={e => updateConfig('volume', parseInt(e.target.value) || 0)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRun.current_step === 'subtitles' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      <div className="input-group">
+                        <label style={{ fontSize: '0.72rem' }}>Gemini API Key</label>
+                        <input
+                          type="password"
+                          className="input-field"
+                          placeholder="AI API Key for transcription..."
+                          value={geminiApiKey}
+                          onChange={e => setGeminiApiKey(e.target.value)}
+                          style={{ height: '34px', fontSize: '0.78rem' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <div className="input-group" style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.72rem' }}>Font Size</label>
+                          <input type="number" className="input-field" value={config.sub_font_size} onChange={e => updateConfig('sub_font_size', parseInt(e.target.value) || 16)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                        </div>
+                        <div className="input-group" style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.72rem' }}>Color (ASS format)</label>
+                          <input type="text" className="input-field" value={config.sub_font_color} onChange={e => updateConfig('sub_font_color', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRun.current_step === 'watermark' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      <div className="input-group">
+                        <label style={{ fontSize: '0.72rem' }}>Overlay Mode</label>
+                        <select className="input-field" value={config.watermark_mode} onChange={e => updateConfig('watermark_mode', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }}>
+                          <option value="logo">Standard Logo (Corner)</option>
+                          <option value="frame">Full Screen Frame (Border/Template)</option>
+                        </select>
+                      </div>
+                      <div className="input-group">
+                        <label style={{ fontSize: '0.72rem' }}>Logo/Frame Image Path</label>
+                        <input type="text" className="input-field" placeholder="e.g. /Users/masi/Documents/logo.png" value={config.watermark_logo_path} onChange={e => updateConfig('watermark_logo_path', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRun.current_step === 'scheduler' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      <div className="input-group">
+                        <label style={{ fontSize: '0.72rem' }}>Stagger Baseline Posting Start Time</label>
+                        <input
+                          type="datetime-local"
+                          className="input-field"
+                          value={config.start_time}
+                          onChange={e => updateConfig('start_time', e.target.value)}
+                          style={{ color: '#fff', fontSize: '0.78rem', height: '34px' }}
+                        />
+                      </div>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-primary)', cursor: 'pointer', marginTop: '0.25rem' }}>
+                        <input type="checkbox" checked={config.use_simulated} onChange={e => updateConfig('use_simulated', e.target.checked)} /> Use Simulated Social Posting
+                      </label>
+
+                      {!config.use_simulated && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '2px solid rgba(255,255,255,0.06)', paddingLeft: '8px', marginTop: '4px' }}>
+                          <div className="input-group">
+                            <label style={{ fontSize: '0.65rem' }}>Meta Access Token</label>
+                            <input type="password" className="input-field" value={config.meta_access_token} onChange={e => updateConfig('meta_access_token', e.target.value)} style={{ height: '28px', fontSize: '0.75rem' }} />
+                          </div>
+                          <div className="input-group">
+                            <label style={{ fontSize: '0.65rem' }}>YouTube Access Token</label>
+                            <input type="password" className="input-field" value={config.youtube_access_token} onChange={e => updateConfig('youtube_access_token', e.target.value)} style={{ height: '28px', fontSize: '0.75rem' }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={loading}
+                    onClick={() => runInteractiveStep(selectedRun.current_step)}
+                    style={{ height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '1.25rem' }}
+                  >
+                    {loading ? <Loader size={16} className="spin" /> : <Play size={16} fill="currentColor" />} Run {selectedRun.current_step.toUpperCase()} Step
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                <h3 className="setting-title" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem' }}>
+                  <Play size={18} /> Run New Pipeline
+                </h3>
 
-          {/* Advanced Step presets (collapsible accordion) */}
-          <div className="glass-panel" style={{ padding: '1.25rem' }}>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              style={{
-                width: '100%', background: 'none', border: 'none', color: 'var(--text-primary)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer',
-                fontWeight: 600, fontSize: '0.88rem', padding: 0
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Settings size={16} /> Configure Pipeline Steps Settings</span>
-              {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-
-            {showAdvanced && (
-              <div style={{ marginTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
-                {/* Horizontal tabs */}
-                <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', gap: '4px', marginBottom: '1rem', overflowX: 'auto', paddingBottom: '4px' }}>
-                  {['step1', 'step2', 'step3', 'step4', 'step5'].map(tab => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setActiveStepTab(tab)}
-                      style={{
-                        padding: '6px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer',
-                        fontSize: '0.75rem', fontWeight: activeStepTab === tab ? 700 : 500,
-                        background: activeStepTab === tab ? 'var(--accent-primary)' : 'transparent',
-                        color: activeStepTab === tab ? '#white' : 'var(--text-secondary)',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {tab === 'step1' && "1. Scraper"}
-                      {tab === 'step2' && "2. Voiceover"}
-                      {tab === 'step3' && "3. Subtitles"}
-                      {tab === 'step4' && "4. Watermark"}
-                      {tab === 'step5' && "5. Credentials"}
-                    </button>
-                  ))}
+                {/* Mode Selector Tab */}
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '8px', marginBottom: '1.25rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPipelineMode('automatic')}
+                    style={{
+                      flex: 1, padding: '6px 12px', border: 'none', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                      background: pipelineMode === 'automatic' ? 'var(--accent-gradient)' : 'transparent',
+                      color: pipelineMode === 'automatic' ? '#fff' : 'var(--text-secondary)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Automatic (End-to-End)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPipelineMode('interactive')}
+                    style={{
+                      flex: 1, padding: '6px 12px', border: 'none', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                      background: pipelineMode === 'interactive' ? 'var(--accent-gradient)' : 'transparent',
+                      color: pipelineMode === 'interactive' ? '#fff' : 'var(--text-secondary)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Interactive (Step-by-Step)
+                  </button>
                 </div>
 
-                {/* Tab content */}
-                {activeStepTab === 'step1' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    <div style={{ display: 'flex', gap: '15px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={config.download_reels} onChange={e => updateConfig('download_reels', e.target.checked)} /> Reels & Videos
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={config.download_posts} onChange={e => updateConfig('download_posts', e.target.checked)} /> Photos
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={config.download_captions} onChange={e => updateConfig('download_captions', e.target.checked)} /> Captions JSON
-                      </label>
-                    </div>
-                    <div className="input-group" style={{ marginTop: '0.5rem' }}>
-                      <label style={{ fontSize: '0.72rem' }}>Local Folder Override (Bypasses scraper download step)</label>
-                      <input
-                        type="text"
-                        className="input-field"
-                        placeholder="e.g. /Users/masi/Documents/newreels"
-                        value={config.local_folder_override}
-                        onChange={e => updateConfig('local_folder_override', e.target.value)}
-                        style={{ height: '34px', fontSize: '0.78rem' }}
-                      />
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
-                        If provided, the pipeline skips downloading and processes the local files directly. If left blank, it will crawl the handle, falling back automatically to <code>/Users/masi/Documents/newreels</code> on scrape failure.
-                      </span>
-                    </div>
-                  </div>
-                )}
+                <div className="input-group" style={{ marginTop: '1rem' }}>
+                  <label>Target Instagram Handle or YouTube Channel Link</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. ayogi_gamer"
+                    value={handle}
+                    onChange={e => setHandle(e.target.value)}
+                  />
+                </div>
 
-                {activeStepTab === 'step2' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    <div className="input-group">
-                      <label style={{ fontSize: '0.72rem' }}>Narrator Voice (edge-tts)</label>
-                      <select className="input-field" value={config.voice} onChange={e => updateConfig('voice', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }}>
-                        <option value="en-US-AriaNeural">Aria (Female US)</option>
-                        <option value="en-US-GuyNeural">Guy (Male US)</option>
-                        <option value="en-GB-SoniaNeural">Sonia (Female UK)</option>
-                        <option value="en-IN-PrabhatNeural">Prabhat (Male India)</option>
-                      </select>
-                    </div>
-                    <div className="input-group">
-                      <label style={{ fontSize: '0.72rem' }}>AI Prompt Guidelines</label>
-                      <input type="text" className="input-field" value={config.custom_prompt} onChange={e => updateConfig('custom_prompt', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
-                    </div>
-                  </div>
-                )}
+                <div className="input-group" style={{ marginTop: '1rem' }}>
+                  <label>Gemini API Key</label>
+                  <input
+                    type="password"
+                    className="input-field"
+                    placeholder="AI API Key for visual analysis & captions..."
+                    value={geminiApiKey}
+                    onChange={e => {
+                      setGeminiApiKey(e.target.value);
+                      localStorage.setItem('gemini_api_key', e.target.value);
+                    }}
+                  />
+                </div>
 
-                {activeStepTab === 'step3' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <div className="input-group" style={{ flex: 1 }}>
-                        <label style={{ fontSize: '0.72rem' }}>Font Size</label>
-                        <input type="number" className="input-field" value={config.sub_font_size} onChange={e => updateConfig('sub_font_size', parseInt(e.target.value) || 16)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                {/* Target Social Platform Badges */}
+                <div className="input-group" style={{ marginTop: '1rem' }}>
+                  <label style={{ marginBottom: '0.5rem', display: 'block' }}>Target Scheduler Channels</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => togglePlatform('instagram')}
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid',
+                        background: selectedPlatforms.includes('instagram') ? 'rgba(225, 48, 108, 0.12)' : 'var(--surface-dark)',
+                        borderColor: selectedPlatforms.includes('instagram') ? '#E1306C' : 'rgba(255,255,255,0.06)',
+                        color: selectedPlatforms.includes('instagram') ? '#fff' : 'var(--text-secondary)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer',
+                        fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <InstagramIcon size={14} style={{ color: '#E1306C' }} /> Instagram
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => togglePlatform('facebook')}
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid',
+                        background: selectedPlatforms.includes('facebook') ? 'rgba(24, 119, 242, 0.12)' : 'var(--surface-dark)',
+                        borderColor: selectedPlatforms.includes('facebook') ? '#1877F2' : 'rgba(255,255,255,0.06)',
+                        color: selectedPlatforms.includes('facebook') ? '#fff' : 'var(--text-secondary)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer',
+                        fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <FacebookIcon size={14} style={{ color: '#1877F2' }} /> Facebook
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => togglePlatform('youtube')}
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid',
+                        background: selectedPlatforms.includes('youtube') ? 'rgba(255, 0, 0, 0.12)' : 'var(--surface-dark)',
+                        borderColor: selectedPlatforms.includes('youtube') ? '#FF0000' : 'rgba(255,255,255,0.06)',
+                        color: selectedPlatforms.includes('youtube') ? '#fff' : 'var(--text-secondary)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer',
+                        fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <YoutubeIcon size={14} style={{ color: '#FF0000' }} /> YouTube
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced Step presets (collapsible accordion) */}
+              <div className="glass-panel" style={{ padding: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  style={{
+                    width: '100%', background: 'none', border: 'none', color: 'var(--text-primary)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer',
+                    fontWeight: 600, fontSize: '0.88rem', padding: 0
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Settings size={16} /> Configure Pipeline Steps Settings</span>
+                  {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+
+                {showAdvanced && (
+                  <div style={{ marginTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
+                    {/* Horizontal tabs */}
+                    <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', gap: '4px', marginBottom: '1rem', overflowX: 'auto', paddingBottom: '4px' }}>
+                      {['step1', 'step2', 'step3', 'step4', 'step5'].map(tab => (
+                        <button
+                          key={tab}
+                          type="button"
+                          onClick={() => setActiveStepTab(tab)}
+                          style={{
+                            padding: '6px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer',
+                            fontSize: '0.75rem', fontWeight: activeStepTab === tab ? 700 : 500,
+                            background: activeStepTab === tab ? 'var(--accent-primary)' : 'transparent',
+                            color: activeStepTab === tab ? '#white' : 'var(--text-secondary)',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {tab === 'step1' && "1. Scraper"}
+                          {tab === 'step2' && "2. Voiceover"}
+                          {tab === 'step3' && "3. Subtitles"}
+                          {tab === 'step4' && "4. Watermark"}
+                          {tab === 'step5' && "5. Credentials"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Tab content */}
+                    {activeStepTab === 'step1' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div style={{ display: 'flex', gap: '15px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={config.download_reels} onChange={e => updateConfig('download_reels', e.target.checked)} /> Reels & Videos
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={config.download_posts} onChange={e => updateConfig('download_posts', e.target.checked)} /> Photos
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={config.download_captions} onChange={e => updateConfig('download_captions', e.target.checked)} /> Captions JSON
+                          </label>
+                        </div>
+                        <div className="input-group" style={{ marginTop: '0.5rem' }}>
+                          <label style={{ fontSize: '0.72rem' }}>Local Folder Override (Bypasses scraper download step)</label>
+                          <input
+                            type="text"
+                            className="input-field"
+                            placeholder="e.g. /Users/masi/Documents/newreels"
+                            value={config.local_folder_override}
+                            onChange={e => updateConfig('local_folder_override', e.target.value)}
+                            style={{ height: '34px', fontSize: '0.78rem' }}
+                          />
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
+                            If provided, the pipeline skips downloading and processes the local files directly. If left blank, it will crawl the handle, falling back automatically to <code>/Users/masi/Documents/newreels</code> on scrape failure.
+                          </span>
+                        </div>
                       </div>
-                      <div className="input-group" style={{ flex: 1 }}>
-                        <label style={{ fontSize: '0.72rem' }}>Color (ASS format)</label>
-                        <input type="text" className="input-field" value={config.sub_font_color} onChange={e => updateConfig('sub_font_color', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {activeStepTab === 'step4' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    <div className="input-group">
-                      <label style={{ fontSize: '0.72rem' }}>Overlay Mode</label>
-                      <select className="input-field" value={config.watermark_mode} onChange={e => updateConfig('watermark_mode', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }}>
-                        <option value="logo">Standard Logo (Corner)</option>
-                        <option value="frame">Full Screen Frame (Border/Template)</option>
-                      </select>
-                    </div>
-                    <div className="input-group">
-                      <label style={{ fontSize: '0.72rem' }}>Logo/Frame Image Path</label>
-                      <input type="text" className="input-field" placeholder="e.g. /Users/masi/Documents/logo.png" value={config.watermark_logo_path} onChange={e => updateConfig('watermark_logo_path', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
-                    </div>
-                  </div>
-                )}
-
-                {activeStepTab === 'step5' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-primary)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={config.use_simulated} onChange={e => updateConfig('use_simulated', e.target.checked)} /> Use Simulated Social Posting
-                    </label>
-                    {!config.use_simulated && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '2px solid rgba(255,255,255,0.06)', paddingLeft: '8px', marginTop: '4px' }}>
+                    {activeStepTab === 'step2' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                         <div className="input-group">
-                          <label style={{ fontSize: '0.65rem' }}>Meta Access Token</label>
-                          <input type="password" className="input-field" value={config.meta_access_token} onChange={e => updateConfig('meta_access_token', e.target.value)} style={{ height: '28px', fontSize: '0.75rem' }} />
+                          <label style={{ fontSize: '0.72rem' }}>Narrator Voice (edge-tts)</label>
+                          <select className="input-field" value={config.voice} onChange={e => updateConfig('voice', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }}>
+                            <option value="en-US-AriaNeural">Aria (Female US)</option>
+                            <option value="en-US-GuyNeural">Guy (Male US)</option>
+                            <option value="en-GB-SoniaNeural">Sonia (Female UK)</option>
+                            <option value="en-IN-PrabhatNeural">Prabhat (Male India)</option>
+                          </select>
                         </div>
                         <div className="input-group">
-                          <label style={{ fontSize: '0.65rem' }}>YouTube Access Token</label>
-                          <input type="password" className="input-field" value={config.youtube_access_token} onChange={e => updateConfig('youtube_access_token', e.target.value)} style={{ height: '28px', fontSize: '0.75rem' }} />
+                          <label style={{ fontSize: '0.72rem' }}>AI Prompt Guidelines</label>
+                          <input type="text" className="input-field" value={config.custom_prompt} onChange={e => updateConfig('custom_prompt', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
                         </div>
+                      </div>
+                    )}
+
+                    {activeStepTab === 'step3' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <div className="input-group" style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.72rem' }}>Font Size</label>
+                            <input type="number" className="input-field" value={config.sub_font_size} onChange={e => updateConfig('sub_font_size', parseInt(e.target.value) || 16)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                          </div>
+                          <div className="input-group" style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.72rem' }}>Color (ASS format)</label>
+                            <input type="text" className="input-field" value={config.sub_font_color} onChange={e => updateConfig('sub_font_color', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeStepTab === 'step4' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div className="input-group">
+                          <label style={{ fontSize: '0.72rem' }}>Overlay Mode</label>
+                          <select className="input-field" value={config.watermark_mode} onChange={e => updateConfig('watermark_mode', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }}>
+                            <option value="logo">Standard Logo (Corner)</option>
+                            <option value="frame">Full Screen Frame (Border/Template)</option>
+                          </select>
+                        </div>
+                        <div className="input-group">
+                          <label style={{ fontSize: '0.72rem' }}>Logo/Frame Image Path</label>
+                          <input type="text" className="input-field" placeholder="e.g. /Users/masi/Documents/logo.png" value={config.watermark_logo_path} onChange={e => updateConfig('watermark_logo_path', e.target.value)} style={{ fontSize: '0.78rem', height: '34px' }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {activeStepTab === 'step5' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-primary)', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={config.use_simulated} onChange={e => updateConfig('use_simulated', e.target.checked)} /> Use Simulated Social Posting
+                        </label>
+                        {!config.use_simulated && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '2px solid rgba(255,255,255,0.06)', paddingLeft: '8px', marginTop: '4px' }}>
+                            <div className="input-group">
+                              <label style={{ fontSize: '0.65rem' }}>Meta Access Token</label>
+                              <input type="password" className="input-field" value={config.meta_access_token} onChange={e => updateConfig('meta_access_token', e.target.value)} style={{ height: '28px', fontSize: '0.75rem' }} />
+                            </div>
+                            <div className="input-group">
+                              <label style={{ fontSize: '0.65rem' }}>YouTube Access Token</label>
+                              <input type="password" className="input-field" value={config.youtube_access_token} onChange={e => updateConfig('youtube_access_token', e.target.value)} style={{ height: '28px', fontSize: '0.75rem' }} />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={loading || !handle || !geminiApiKey}
-            onClick={startPipeline}
-            style={{ height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-          >
-            {loading ? (
-              <>
-                <Loader size={20} className="spin" /> Triggering Scraper...
-              </>
-            ) : (
-              <>
-                <Play size={20} fill="currentColor" /> Launch Automation Pipeline
-              </>
-            )}
-          </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={loading || !handle || (pipelineMode === 'automatic' && !geminiApiKey)}
+                onClick={startPipeline}
+                style={{ height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                {loading ? (
+                  <>
+                    <Loader size={20} className="spin" /> Creating Run...
+                  </>
+                ) : (
+                  <>
+                    <Play size={20} fill="currentColor" /> {pipelineMode === 'automatic' ? 'Launch End-to-End Pipeline' : 'Create Interactive Run'}
+                  </>
+                )}
+              </button>
+            </>
+          )}
         </div>
 
         {/* Right Side: Live Visual Flow & Scrolling Terminal logs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
+
           {/* Visual Step Progress Flow Node Diagram */}
           <div className="glass-panel" style={{ padding: '1.25rem' }}>
             <h4 style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.85rem' }}>
               Pipeline Step Flow
             </h4>
-            
+
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', padding: '0 8px' }}>
-              
+
               {/* Connection progress lines */}
               <div style={{
                 position: 'absolute', top: '15px', left: '20px', right: '20px', height: '2px',
@@ -486,7 +783,7 @@ export default function AutomationPipeline() {
               }} />
               {selectedRun && currentStepIndex >= 0 && (
                 <div style={{
-                  position: 'absolute', top: '15px', left: '20px', 
+                  position: 'absolute', top: '15px', left: '20px',
                   width: `${Math.min(100, (currentStepIndex / 5) * 100)}%`,
                   height: '2px', background: 'var(--accent-gradient)', zIndex: 2,
                   transition: 'width 0.5s ease-out'
@@ -503,22 +800,22 @@ export default function AutomationPipeline() {
               ].map((n, idx) => {
                 const isPassed = currentStepIndex > idx || (selectedRun?.status === 'completed');
                 const isActive = selectedRun?.status === 'running' && selectedRun?.current_step === n.step;
-                
+
                 return (
                   <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', zIndex: 5 }}>
                     <div style={{
                       width: '32px', height: '32px', borderRadius: '999px',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: '0.75rem', fontWeight: 700,
-                      background: isPassed 
-                        ? 'var(--accent-gradient)' 
-                        : isActive 
-                          ? 'rgba(139, 92, 246, 0.15)' 
+                      background: isPassed
+                        ? 'var(--accent-gradient)'
+                        : isActive
+                          ? 'rgba(139, 92, 246, 0.15)'
                           : 'var(--surface-dark)',
-                      border: isPassed 
-                        ? 'none' 
-                        : isActive 
-                          ? '2px solid var(--accent-primary)' 
+                      border: isPassed
+                        ? 'none'
+                        : isActive
+                          ? '2px solid var(--accent-primary)'
                           : '2px solid rgba(255,255,255,0.06)',
                       boxShadow: isActive ? '0 0 10px rgba(139, 92, 246, 0.5)' : 'none',
                       color: isPassed || isActive ? '#fff' : 'var(--text-secondary)',

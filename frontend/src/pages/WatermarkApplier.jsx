@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { 
-  FolderOpen, Play, CheckCircle, AlertCircle, 
+import {
+  FolderOpen, Play, CheckCircle, AlertCircle,
   Loader, Settings, Palette, Eye, Image, Move
 } from 'lucide-react';
 
@@ -9,7 +9,7 @@ export default function WatermarkApplier() {
   const [logoPath, setLogoPath] = useState('');
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
-  
+
   // Settings configuration
   const [settings, setSettings] = useState({
     watermark_mode: 'logo',
@@ -36,7 +36,7 @@ export default function WatermarkApplier() {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/watermark/jobs');
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/watermark/jobs');
       if (res.ok) {
         const data = await res.json();
         setJobs(data.reverse());
@@ -58,7 +58,7 @@ export default function WatermarkApplier() {
 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/watermark/process', {
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/watermark/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -67,7 +67,7 @@ export default function WatermarkApplier() {
           settings: settings
         })
       });
-      
+
       if (!res.ok) {
         const errData = await res.json();
         alert(errData.detail || "Failed to start watermark process");
@@ -131,16 +131,16 @@ export default function WatermarkApplier() {
 
       {/* ── Main Content Grid ────────────────────────── */}
       <div className="editor-grid">
-        
+
         {/* Left Control Panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
+
           {/* Paths Settings */}
           <div className="glass-panel" style={{ padding: '1.5rem' }}>
             <h3 className="setting-title" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FolderOpen size={18} /> File & Folder Settings
             </h3>
-            
+
             <div className="input-group" style={{ marginTop: '1rem' }}>
               <label>Video Folder Path</label>
               <input
@@ -273,7 +273,7 @@ export default function WatermarkApplier() {
               <Eye size={12} /> Placement Mockup Preview
             </h4>
             <div style={{
-              position: 'relative', width: '100%', height: '140px', borderRadius: '8px', 
+              position: 'relative', width: '100%', height: '140px', borderRadius: '8px',
               background: 'linear-gradient(185deg, #1f2937, #0f172a)', overflow: 'hidden',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: '1px dashed rgba(255,255,255,0.08)'
@@ -325,7 +325,7 @@ export default function WatermarkApplier() {
 
         {/* Right Side: Jobs List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
+
           <div className="glass-panel" style={{ padding: '1.5rem', flex: 1, minHeight: '400px' }}>
             <h3 className="setting-title" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem' }}>
               <Image size={18} /> Watermarking Jobs Queue
@@ -353,8 +353,8 @@ export default function WatermarkApplier() {
 
                     {job.status === 'processing' && (
                       <div className="processing-bar-outer" style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '99px', overflow: 'hidden', marginBottom: '0.75rem' }}>
-                        <div className="processing-bar-inner" style={{ 
-                          height: '100%', 
+                        <div className="processing-bar-inner" style={{
+                          height: '100%',
                           background: 'var(--accent-gradient)',
                           width: job.total_files > 0 ? `${(job.processed_files / job.total_files) * 100}%` : '0%',
                           transition: 'width 0.4s ease'
@@ -400,7 +400,7 @@ export default function WatermarkApplier() {
                                 className="btn-secondary"
                                 onClick={() => setPreviewVideo({
                                   name: file.name,
-                                  url: `http://localhost:8000/api/audio-gen/stream?path=${encodeURIComponent(file.path)}`
+                                  url: `https://content-automation-pipeline.onrender.com/api/audio-gen/stream?path=${encodeURIComponent(file.path)}`
                                 })}
                                 style={{
                                   padding: '4px 8px', fontSize: '0.72rem', height: 'auto',

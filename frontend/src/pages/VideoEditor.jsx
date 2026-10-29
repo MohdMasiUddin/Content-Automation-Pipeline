@@ -14,9 +14,9 @@ const PRESETS = [
 ];
 
 const RESIZE_MODES = [
-  { value: 'fill',     label: 'Fill',     icon: Scaling, desc: 'Fit inside + color bars' },
-  { value: 'cut',      label: 'Cut',      icon: Crop,    desc: 'Crop center to fit' },
-  { value: 'compress', label: 'Compress',  icon: Shrink,  desc: 'Stretch to fit' },
+  { value: 'fill', label: 'Fill', icon: Scaling, desc: 'Fit inside + color bars' },
+  { value: 'cut', label: 'Cut', icon: Crop, desc: 'Crop center to fit' },
+  { value: 'compress', label: 'Compress', icon: Shrink, desc: 'Stretch to fit' },
 ];
 
 const QUALITY_OPTIONS = [
@@ -142,7 +142,7 @@ function VideoEditor() {
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/video-editor/jobs');
+        const res = await fetch('https://content-automation-pipeline.onrender.com/api/video-editor/jobs');
         if (res.ok) { setJobs((await res.json()).reverse()); }
       } catch (err) { /* ignore */ }
     };
@@ -159,7 +159,7 @@ function VideoEditor() {
     if (!folderPath) return;
     setScanning(true);
     try {
-      const res = await fetch('http://localhost:8000/api/video-editor/list-folder', {
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/video-editor/list-folder', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder_path: folderPath }),
       });
@@ -172,7 +172,7 @@ function VideoEditor() {
     if (!folderPath) return;
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/video-editor/process', {
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/video-editor/process', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder_path: folderPath, settings }),
       });
@@ -183,7 +183,7 @@ function VideoEditor() {
 
   const cancelJob = async (jobId) => {
     try {
-      await fetch(`http://localhost:8000/api/video-editor/cancel/${jobId}`, {
+      await fetch(`https://content-automation-pipeline.onrender.com/api/video-editor/cancel/${jobId}`, {
         method: 'POST',
       });
     } catch (err) {
@@ -271,60 +271,60 @@ function VideoEditor() {
 
         {/* Color Bars — only visible in Fill mode */}
         {settings.resize_enabled && settings.resize_mode === 'fill' && (
-        <SettingSection icon={Palette} title="Color Bars / Mask" enabled={settings.color_bars_enabled} onToggle={v => u('color_bars_enabled', v)} defaultOpen={true}>
-          {settings.color_bars_enabled && (
-            <>
-              {/* Custom top/bottom mask height */}
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Mask Height (px)</label>
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label>Top</label>
-                  <input type="number" className="input-field" value={settings.bar_top_height} onChange={e => u('bar_top_height', parseInt(e.target.value) || 0)} min="0" placeholder="0 = auto" />
-                </div>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label>Bottom</label>
-                  <input type="number" className="input-field" value={settings.bar_bottom_height} onChange={e => u('bar_bottom_height', parseInt(e.target.value) || 0)} min="0" placeholder="0 = auto" />
-                </div>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
-                {settings.bar_top_height > 0 || settings.bar_bottom_height > 0
-                  ? <>Custom: <strong>{settings.bar_top_height}px</strong> top, <strong>{settings.bar_bottom_height}px</strong> bottom</>
-                  : <>Set to 0 for auto (uses position preset below)</>}
-              </p>
-
-              {/* Position preset — only relevant when custom heights are both 0 */}
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block', opacity: (settings.bar_top_height > 0 || settings.bar_bottom_height > 0) ? 0.4 : 1 }}>Position Preset</label>
-              <div className="preset-buttons" style={{ marginBottom: '1rem', opacity: (settings.bar_top_height > 0 || settings.bar_bottom_height > 0) ? 0.4 : 1, pointerEvents: (settings.bar_top_height > 0 || settings.bar_bottom_height > 0) ? 'none' : 'auto' }}>
-                {BAR_POSITIONS.map(bp => (
-                  <button key={bp.value} type="button" className={`preset-btn ${settings.bar_position === bp.value ? 'active' : ''}`} onClick={() => u('bar_position', bp.value)}>{bp.label}</button>
-                ))}
-              </div>
-
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Color</label>
-              <div className="color-presets">
-                {COLOR_PRESETS.map(c => (
-                  <button key={c.value} type="button" className={`color-btn ${settings.bar_color === c.value ? 'active' : ''}`} onClick={() => u('bar_color', c.value)}>
-                    <span className="color-swatch" style={{ background: c.value }} />{c.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', alignItems: 'flex-end' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label>Custom Hex</label>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <input type="color" value={settings.bar_color} onChange={e => u('bar_color', e.target.value)} style={{ width: '40px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '8px', background: 'transparent' }} />
-                    <input type="text" className="input-field" value={settings.bar_color} onChange={e => u('bar_color', e.target.value)} style={{ flex: 1 }} />
+          <SettingSection icon={Palette} title="Color Bars / Mask" enabled={settings.color_bars_enabled} onToggle={v => u('color_bars_enabled', v)} defaultOpen={true}>
+            {settings.color_bars_enabled && (
+              <>
+                {/* Custom top/bottom mask height */}
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Mask Height (px)</label>
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="input-group" style={{ flex: 1 }}>
+                    <label>Top</label>
+                    <input type="number" className="input-field" value={settings.bar_top_height} onChange={e => u('bar_top_height', parseInt(e.target.value) || 0)} min="0" placeholder="0 = auto" />
+                  </div>
+                  <div className="input-group" style={{ flex: 1 }}>
+                    <label>Bottom</label>
+                    <input type="number" className="input-field" value={settings.bar_bottom_height} onChange={e => u('bar_bottom_height', parseInt(e.target.value) || 0)} min="0" placeholder="0 = auto" />
                   </div>
                 </div>
-                <div className="input-group" style={{ width: '120px' }}>
-                  <label>Opacity</label>
-                  <input type="range" min="0" max="1" step="0.05" value={settings.bar_opacity} onChange={e => u('bar_opacity', parseFloat(e.target.value))} className="range-slider" />
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{Math.round(settings.bar_opacity * 100)}%</span>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
+                  {settings.bar_top_height > 0 || settings.bar_bottom_height > 0
+                    ? <>Custom: <strong>{settings.bar_top_height}px</strong> top, <strong>{settings.bar_bottom_height}px</strong> bottom</>
+                    : <>Set to 0 for auto (uses position preset below)</>}
+                </p>
+
+                {/* Position preset — only relevant when custom heights are both 0 */}
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block', opacity: (settings.bar_top_height > 0 || settings.bar_bottom_height > 0) ? 0.4 : 1 }}>Position Preset</label>
+                <div className="preset-buttons" style={{ marginBottom: '1rem', opacity: (settings.bar_top_height > 0 || settings.bar_bottom_height > 0) ? 0.4 : 1, pointerEvents: (settings.bar_top_height > 0 || settings.bar_bottom_height > 0) ? 'none' : 'auto' }}>
+                  {BAR_POSITIONS.map(bp => (
+                    <button key={bp.value} type="button" className={`preset-btn ${settings.bar_position === bp.value ? 'active' : ''}`} onClick={() => u('bar_position', bp.value)}>{bp.label}</button>
+                  ))}
                 </div>
-              </div>
-            </>
-          )}
-        </SettingSection>
+
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>Color</label>
+                <div className="color-presets">
+                  {COLOR_PRESETS.map(c => (
+                    <button key={c.value} type="button" className={`color-btn ${settings.bar_color === c.value ? 'active' : ''}`} onClick={() => u('bar_color', c.value)}>
+                      <span className="color-swatch" style={{ background: c.value }} />{c.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', alignItems: 'flex-end' }}>
+                  <div className="input-group" style={{ flex: 1 }}>
+                    <label>Custom Hex</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input type="color" value={settings.bar_color} onChange={e => u('bar_color', e.target.value)} style={{ width: '40px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '8px', background: 'transparent' }} />
+                      <input type="text" className="input-field" value={settings.bar_color} onChange={e => u('bar_color', e.target.value)} style={{ flex: 1 }} />
+                    </div>
+                  </div>
+                  <div className="input-group" style={{ width: '120px' }}>
+                    <label>Opacity</label>
+                    <input type="range" min="0" max="1" step="0.05" value={settings.bar_opacity} onChange={e => u('bar_opacity', parseFloat(e.target.value))} className="range-slider" />
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{Math.round(settings.bar_opacity * 100)}%</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </SettingSection>
         )}
 
         {/* Crop */}
@@ -369,7 +369,7 @@ function VideoEditor() {
                   <option value="cut">Cut selected segments (Keep rest)</option>
                 </select>
               </div>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Segments (HH:MM:SS or MM:SS)</label>
                 {settings.trim_segments.map((seg, idx) => (

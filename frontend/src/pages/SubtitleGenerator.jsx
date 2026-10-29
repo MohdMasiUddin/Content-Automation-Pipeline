@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { 
-  Type, FolderOpen, Play, CheckCircle, AlertCircle, 
+import {
+  Type, FolderOpen, Play, CheckCircle, AlertCircle,
   Loader, Settings, Palette, Eye, Volume2, Sparkles,
   Maximize2
 } from 'lucide-react';
@@ -10,7 +10,7 @@ export default function SubtitleGenerator() {
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
-  
+
   // Styling configuration
   const [styling, setStyling] = useState({
     font_size: 18,
@@ -43,7 +43,7 @@ export default function SubtitleGenerator() {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/subtitles/jobs');
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/subtitles/jobs');
       if (res.ok) {
         const data = await res.json();
         setJobs(data.reverse());
@@ -65,7 +65,7 @@ export default function SubtitleGenerator() {
 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/subtitles/process', {
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/subtitles/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -74,7 +74,7 @@ export default function SubtitleGenerator() {
           styling: styling
         })
       });
-      
+
       if (!res.ok) {
         const errData = await res.json();
         alert(errData.detail || "Failed to start subtitle process");
@@ -109,16 +109,16 @@ export default function SubtitleGenerator() {
 
       {/* ── Main Content Grid ────────────────────────── */}
       <div className="editor-grid">
-        
+
         {/* Left Control Panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
+
           {/* Path & API Key Settings */}
           <div className="glass-panel" style={{ padding: '1.5rem' }}>
             <h3 className="setting-title" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FolderOpen size={18} /> Folder & Key Settings
             </h3>
-            
+
             <div className="input-group" style={{ marginTop: '1rem' }}>
               <label>Video Folder Path</label>
               <input
@@ -233,7 +233,7 @@ export default function SubtitleGenerator() {
           <div className="glass-panel" style={{ padding: '1.5rem', background: 'rgba(0, 0, 0, 0.3)', border: '1px solid rgba(255,255,255,0.05)' }}>
             <h4 style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Style Preview</h4>
             <div style={{
-              position: 'relative', width: '100%', height: '120px', borderRadius: '8px', 
+              position: 'relative', width: '100%', height: '120px', borderRadius: '8px',
               background: 'linear-gradient(180deg, #1f2937, #111827)', overflow: 'hidden',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
@@ -279,7 +279,7 @@ export default function SubtitleGenerator() {
 
         {/* Right Side: Jobs List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          
+
           <div className="glass-panel" style={{ padding: '1.5rem', flex: 1, minHeight: '400px' }}>
             <h3 className="setting-title" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem' }}>
               <Type size={18} /> Subtitle Jobs Queue
@@ -307,8 +307,8 @@ export default function SubtitleGenerator() {
 
                     {job.status === 'processing' && (
                       <div className="processing-bar-outer" style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '99px', overflow: 'hidden', marginBottom: '0.75rem' }}>
-                        <div className="processing-bar-inner" style={{ 
-                          height: '100%', 
+                        <div className="processing-bar-inner" style={{
+                          height: '100%',
                           background: 'var(--accent-gradient)',
                           width: job.total_files > 0 ? `${(job.processed_files / job.total_files) * 100}%` : '0%',
                           transition: 'width 0.4s ease'
@@ -354,7 +354,7 @@ export default function SubtitleGenerator() {
                                 className="btn-secondary"
                                 onClick={() => setPreviewVideo({
                                   name: file.name,
-                                  url: `http://localhost:8000/api/audio-gen/stream?path=${encodeURIComponent(file.path)}`
+                                  url: `https://content-automation-pipeline.onrender.com/api/audio-gen/stream?path=${encodeURIComponent(file.path)}`
                                 })}
                                 style={{
                                   padding: '4px 8px', fontSize: '0.72rem', height: 'auto',

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, Film, Volume2, ChevronRight, Type, Image, Calendar, RefreshCw } from 'lucide-react';
+import { Download, Film, Volume2, ChevronRight, Type, Image, Calendar, RefreshCw, FolderOpen } from 'lucide-react';
 import InstagramDownloader from './pages/InstagramDownloader';
 import VideoEditor from './pages/VideoEditor';
 import AudioGenerator from './pages/AudioGenerator';
@@ -7,6 +7,7 @@ import SubtitleGenerator from './pages/SubtitleGenerator';
 import WatermarkApplier from './pages/WatermarkApplier';
 import SocialScheduler from './pages/SocialScheduler';
 import AutomationPipeline from './pages/AutomationPipeline';
+import MetadataPackager from './pages/MetadataPackager';
 import './index.css';
 
 const NAV_ITEMS = [
@@ -16,6 +17,7 @@ const NAV_ITEMS = [
   { id: 'audio-generator', label: 'Audio Generator', icon: Volume2 },
   { id: 'subtitles', label: 'Subtitle Generator', icon: Type },
   { id: 'watermark', label: 'Watermark Applier', icon: Image },
+  { id: 'packager', label: 'Metadata Packager', icon: FolderOpen },
   { id: 'scheduler', label: 'Social Scheduler', icon: Calendar },
 ];
 
@@ -36,6 +38,8 @@ function App() {
         return <SubtitleGenerator />;
       case 'watermark':
         return <WatermarkApplier />;
+      case 'packager':
+        return <MetadataPackager />;
       case 'scheduler':
         return <SocialScheduler />;
       default:

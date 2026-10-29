@@ -59,17 +59,17 @@ function AudioGenerator() {
 
   // Fetch voices on mount
   useEffect(() => {
-    fetch('http://localhost:8000/api/audio-gen/voices')
+    fetch('https://content-automation-pipeline.onrender.com/api/audio-gen/voices')
       .then(r => r.ok ? r.json() : [])
       .then(setVoices)
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Poll jobs
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/audio-gen/jobs');
+        const res = await fetch('https://content-automation-pipeline.onrender.com/api/audio-gen/jobs');
         if (res.ok) setJobs((await res.json()).reverse());
       } catch (err) { /* ignore */ }
     };
@@ -82,7 +82,7 @@ function AudioGenerator() {
     if (!folderPath) return;
     setScanning(true);
     try {
-      const res = await fetch('http://localhost:8000/api/audio-gen/list-folder', {
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/audio-gen/list-folder', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder_path: folderPath }),
       });
@@ -101,7 +101,7 @@ function AudioGenerator() {
       custom_prompt: customPrompt || null
     };
     try {
-      const res = await fetch('http://localhost:8000/api/audio-gen/process', {
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/audio-gen/process', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder_path: folderPath, settings: settingsWithAI }),
       });
@@ -120,7 +120,7 @@ function AudioGenerator() {
     }
 
     try {
-      const res = await fetch('http://localhost:8000/api/audio-gen/auto-analyze', {
+      const res = await fetch('https://content-automation-pipeline.onrender.com/api/audio-gen/auto-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -156,7 +156,7 @@ function AudioGenerator() {
             );
 
             // Fetch fallback heuristic scripts
-            const fallbackRes = await fetch('http://localhost:8000/api/audio-gen/auto-analyze', {
+            const fallbackRes = await fetch('https://content-automation-pipeline.onrender.com/api/audio-gen/auto-analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -624,7 +624,7 @@ function AudioGenerator() {
               <video
                 controls
                 autoPlay
-                src={`http://localhost:8000/api/audio-gen/stream?file_path=${encodeURIComponent(activeVideo.path)}`}
+                src={`https://content-automation-pipeline.onrender.com/api/audio-gen/stream?file_path=${encodeURIComponent(activeVideo.path)}`}
                 style={{ width: '100%', maxHeight: '60vh', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
               />
             </div>
